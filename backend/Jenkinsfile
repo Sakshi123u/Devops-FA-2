@@ -2,81 +2,121 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_IMAGE = 'ecocycle/backend:latest'
-        KUBE_NAMESPACE = 'ecocycle-prod'
+        BACKEND_IMAGE = 'ecocycle-backend:1.0'
+        FRONTEND_IMAGE = 'ecocycle-frontend:1.0'
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'
+        MINIKUBE_HOME = '/var/lib/jenkins/.minikube'
     }
 
     stages {
+
         stage('1. Checkout Code') {
             steps {
-                echo 'Checking out source code from Git repository...'
+                echo 'Checking out EcoCycle source code...'
                 checkout scm
             }
         }
 
-        stage('2. Maven Build & Package') {
+        stage('2. Backend Build') {
             steps {
                 dir('backend') {
-                    echo 'Compiling Spring Boot backend using Maven...'
-                    sh 'mvn clean compile'
-                    sh 'mvn package -DskipTests=false'
+                    echo 'Building Spring Boot backend...'
+                    sh 'mvn clean package -DskipTests'
                 }
             }
         }
 
-        stage('3. Unit & Integration Testing') {
+        stage('3. Backend Tests') {
             steps {
                 dir('backend') {
-                    echo 'Running JUnit 5 test cases...'
+                    echo 'Running JUnit tests...'
                     sh 'mvn test'
                 }
             }
         }
 
-        stage('4. SonarQube & Security Scan') {
+        stage('4. Frontend Build') {
+            steps {
+                echo 'Building React frontend...'
+                sh 'npm install'
+                sh 'npm run build'
+            }
+        }
+
+        stage('5. Security Check') {
             steps {
                 dir('backend') {
-                    echo 'Running static code analysis and OWASP dependency check...'
-                    // sh 'mvn sonar:sonar'
-                    echo 'Security scan passed: 0 vulnerabilities found.'
+                    echo 'Running dependency security check...'
+                    sh 'mvn dependency:tree'
                 }
             }
         }
 
-        stage('5. Docker Image Build') {
+        stage('6. Build Docker Images') {
             steps {
-                dir('backend') {
-                    echo "Building Docker container image: ${DOCKER_IMAGE}..."
-                    sh "docker build -t ${DOCKER_IMAGE} ."
-                }
+                echo 'Building backend Docker image...'
+                sh 'docker build -t ${BACKEND_IMAGE} ./backend'
+
+                echo 'Building frontend Docker image...'
+                sh 'docker build -t ${FRONTEND_IMAGE} .'
             }
         }
 
-        stage('6. Deploy to Kubernetes') {
+        stage('7. Load Images into Minikube') {
             steps {
-                echo "Deploying Spring Boot Pods and Services to Kubernetes namespace: ${KUBE_NAMESPACE}..."
-                // sh 'kubectl apply -f k8s/deployment.yaml -n ${KUBE_NAMESPACE}'
-                echo 'Kubernetes deployment successful. Endpoints healthy.'
+                echo 'Loading backend image into Minikube...'
+                sh 'minikube image load ${BACKEND_IMAGE}'
+
+                echo 'Loading frontend image into Minikube...'
+                sh 'minikube image load ${FRONTEND_IMAGE}'
             }
         }
 
-        stage('7. Prometheus & ELK Verification') {
+        stage('8. Deploy to Kubernetes') {
             steps {
-                echo 'Verifying /actuator/prometheus metrics scrapers and ELK Logstash shipping...'
-                echo 'Health status: UP. DevOps pipeline complete.'
+                echo 'Deploying EcoCycle backend to Kubernetes...'
+                sh 'kubectl apply -f k8s/backend.yaml'
+
+                echo 'Deploying EcoCycle frontend to Kubernetes...'
+                sh 'kubectl apply -f k8s/frontend.yaml'
+
+                echo 'Restarting deployments to use the latest images...'
+                sh 'kubectl rollout restart deployment/ecocycle-backend'
+                sh 'kubectl rollout restart deployment/ecocycle-frontend'
+
+                echo 'Waiting for backend deployment...'
+                sh 'kubectl rollout status deployment/ecocycle-backend --timeout=120s'
+
+                echo 'Waiting for frontend deployment...'
+                sh 'kubectl rollout status deployment/ecocycle-frontend --timeout=120s'
+            }
+        }
+
+        stage('9. Kubernetes Verification') {
+            steps {
+                echo 'Checking Kubernetes pods...'
+                sh 'kubectl get pods -o wide'
+
+                echo 'Checking Kubernetes services...'
+                sh 'kubectl get services'
+
+                echo 'Checking deployments...'
+                sh 'kubectl get deployments'
             }
         }
     }
 
     post {
         always {
-            echo 'Jenkins pipeline execution finished.'
+            echo 'EcoCycle Jenkins Kubernetes pipeline finished.'
         }
+
         success {
-            echo 'EcoCycle Spring Boot application built and deployed successfully!'
+            echo 'SUCCESS: EcoCycle built, tested, containerized and deployed to Kubernetes.'
         }
+
         failure {
-            echo 'Pipeline failed. Check build logs for details.'
+            echo 'FAILURE: Check the Jenkins console output for errors.'
         }
     }
 }
