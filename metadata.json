@@ -1,0 +1,6 @@
+{
+  "name": "EcoCycle – Smart Waste Management & Recycling Platform",
+  "description": "Smart community waste management and recycling platform to report waste, schedule pickups, find recycling centers, track eco points, and monitor admin operations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
