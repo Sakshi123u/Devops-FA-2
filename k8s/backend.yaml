@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecocycle-backend
+  labels:
+    app: ecocycle-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ecocycle-backend
+  template:
+    metadata:
+      labels:
+        app: ecocycle-backend
+    spec:
+      containers:
+        - name: backend
+          image: ecocycle-backend:1.0
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "700Mi"
+              cpu: "500m"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ecocycle-backend
+  labels:
+    app: ecocycle-backend
+spec:
+  selector:
+    app: ecocycle-backend
+  ports:
+    - port: 8080
+      targetPort: 8080
+  type: ClusterIP

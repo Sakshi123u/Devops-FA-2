@@ -1,0 +1,21 @@
+services:
+
+  backend:
+    build:
+      context: ./backend
+    image: ecocycle-backend:1.0
+    container_name: ecocycle-backend
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+    image: ecocycle-frontend:1.0
+    container_name: ecocycle-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
